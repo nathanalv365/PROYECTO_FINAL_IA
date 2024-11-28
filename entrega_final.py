@@ -10,7 +10,7 @@ from tkinter import Tk, Label, Button, Entry, messagebox, filedialog, Canvas
 from tkinter.ttk import Combobox, Notebook
 from tkinterdnd2 import TkinterDnD, DND_FILES
 import tkinter as tk
-
+from docx import Document  # Biblioteca para leer documentos Word
 
 # Configurar RoBERTa para resumen de texto
 summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
@@ -58,6 +58,11 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 print(f"MSE del modelo: {mean_squared_error(y_test, y_pred):.2f}")
 
+# Función para leer documentos Word
+def read_word_file(file_path):
+    doc = Document(file_path)
+    return "\n".join([paragraph.text for paragraph in doc.paragraphs])
+
 # Función para analizar el archivo con RoBERTa y leerlo con la codificación correcta
 def analyze_file(file_path):
     if not os.path.exists(file_path):
@@ -65,15 +70,19 @@ def analyze_file(file_path):
         return
 
     try:
-        # Detectar la codificación del archivo
-        with open(file_path, 'rb') as f:
-            raw_data = f.read()
-            result = chardet.detect(raw_data)
-            encoding = result['encoding']
-        
-        # Abrir el archivo con la codificación detectada
-        with open(file_path, "r", encoding=encoding) as f:
-            content = f.read()
+        # Leer el contenido según la extensión del archivo
+        if file_path.endswith(".docx") or file_path.endswith(".doc"):
+            content = read_word_file(file_path)
+        else:
+            # Detectar la codificación del archivo
+            with open(file_path, 'rb') as f:
+                raw_data = f.read()
+                result = chardet.detect(raw_data)
+                encoding = result['encoding']
+
+            # Abrir el archivo con la codificación detectada
+            with open(file_path, "r", encoding=encoding) as f:
+                content = f.read()
 
         # Usar RoBERTa para generar un resumen
         summary = summarizer(content, max_length=130, min_length=30, do_sample=False)[0]["summary_text"]
@@ -98,7 +107,14 @@ def analyze_file(file_path):
 
 # Función para abrir un archivo desde cualquier ubicación
 def open_file_from_anywhere():
-    file_path = filedialog.askopenfilename(title="Selecciona un archivo", filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")])
+    file_path = filedialog.askopenfilename(
+        title="Selecciona un archivo",
+        filetypes=[
+            ("Archivos de texto", "*.txt"),
+            ("Documentos Word", "*.docx *.doc"),
+            ("Todos los archivos", "*.*"),
+        ],
+    )
     if file_path:  # Verificar si el usuario seleccionó un archivo
         analyze_file(file_path)
 
@@ -131,13 +147,13 @@ notebook = Notebook(root)
 notebook.grid(row=0, column=0, padx=10, pady=10)
 
 # Pestaña 1: Predicción desde archivo
-tab_file = tk.Frame(notebook)  # Aquí es donde cambiamos Tk.Frame por tk.Frame
+tab_file = tk.Frame(notebook)
 notebook.add(tab_file, text="Predicción desde Archivo")
 
 # Canvas para arrastrar archivos
 canvas = Canvas(tab_file, width=400, height=200, bg="lightblue")
 canvas.grid(row=0, column=0, columnspan=2)
-canvas.create_text(200, 100, text="Arrastra aquí tu archivo .txt", font=("Arial", 12))
+canvas.create_text(200, 100, text="Arrastra aquí tu archivo .txt o .doc/.docx", font=("Arial", 12))
 
 # Permitir arrastrar archivos
 canvas.drop_target_register(DND_FILES)
@@ -147,7 +163,7 @@ canvas.dnd_bind('<<Drop>>', drop_file)
 Button(tab_file, text="Seleccionar Archivo", command=open_file_from_anywhere).grid(row=1, column=0, columnspan=2)
 
 # Pestaña 2: Introducción manual de datos
-tab_manual = tk.Frame(notebook)  # Aquí también cambiamos Tk.Frame por tk.Frame
+tab_manual = tk.Frame(notebook)
 notebook.add(tab_manual, text="Introducción de Datos")
 
 # Campos de entrada manual para discapacidad y ubicación
